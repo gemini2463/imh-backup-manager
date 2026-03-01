@@ -1,0 +1,122 @@
+{# vim: ts=2:sw=2:et:ft=jinja-html #}
+{% macro title(task) -%}
+<strong>
+  {% if task.task == 'dirs' %}
+    System dir
+  {%- elif task.task == 'mysql' %}
+    MySQL
+  {%- elif task.task == 'pgsql' %}
+    PgSQL
+  {%- else %}
+    {{ task.title() }}
+  {%- endif %}
+  restoration from <span class="nowrap">{{task.date|stamp2date}}</span>
+</strong>
+{%- endmacro %}
+
+{%- macro desc(task) %}
+  {%- if 'result' in task and task['result'] %}
+    Restored
+  {%- else %}
+    Restoring
+  {%- endif %}
+  {%- if task.task == 'dirs' %}
+    {{ task.params['paths'].__len__() }} file(s)/folder(s)
+    {%- if task.mode == 'target' %}
+      to {{task.params['target']}}
+    {%- else %}
+      to original path(s)
+    {%- endif %}
+  {%- else %}
+    {{ task.params['dbname'] }}
+    {%- if task.mode == 'target' %}
+      to {{task.params['target'].rstrip('/')}}/{{ task.params['dbname'] }}.sql
+    {%- endif %}
+  {%- endif %}
+{%- endmacro %}
+
+{%- macro cancel_button(text, tag) %}
+<a class="nowrap" href="#" data-tag="{{tag}}" onclick="cancel_restore_item(this);"><i class="fa fa-trash"></i> {{text}}</a>
+{%- endmacro %}
+
+{%- macro log_button(task) %}
+<a class="nowrap" href="#" data-log='{{task["log"]|tojson}}' onclick="view_fail_log(this);"><i class="fa fa-book"></i> View Log</a>
+{%- endmacro %}
+
+{%- macro ticket_button(task, tag) %}
+<a class="nowrap" href="#" data-params='{{task.params|tojson}}' data-tag="{{tag}}" data-task="{{task['task']}}" data-log='{{task["log"]|tojson}}' onclick="ticket_modal(this);"><i class="fa fa-ticket"></i> Submit Ticket</a>
+{%- endmacro %}
+
+{%- macro info_columns(task, queue, failed=false) %}
+<div class="col-sm-7">
+  {{ title(task) }}
+  <br />
+  {{ desc(task) }}
+</div>
+<div class="col-sm-2">
+{%- if failed %}
+  <strong class="text-danger">Failed</strong>
+{%- else %}
+  <strong>{{ queue.title()}}</strong>
+{%- endif %}
+</div>
+{%- endmacro %}
+
+{%- macro ongoing_item(task, queue, cancel_text, tag) %}
+{{ info_columns(task, queue) }}
+<div class="col-sm-3 vertical-links">
+  {{ cancel_button(cancel_text, tag) }}
+</div>
+{%- endmacro %}
+
+<div id="do-timer" data-do-timer='{{(restore_queue["queued"]|length > 0 or restore_queue["running"]|length > 0)|tojson}}'></div>
+<div class="well">
+  <div class="row">
+    <div id="restorations-finished" class="col-sm-6">
+      <p><strong>Completed Restorations in the last 7 Days</strong></p>
+      <div class="queue pad-left">
+        {% if restore_queue["finished"]|length == 0 %}
+        <div class="well row restore-item-div">
+          No recently completed restorations to display.
+        </div>
+        {% endif %}
+        {%- for task in restore_queue['finished'] %}
+        {%- set tag = 'restore::root::{0[task]}::{0[stamp]}'.format(task) %}
+        <div class="well tagged-item row restore-item-div{% if tag not in prev_tags_loaded %} restore-item-new{% endif %}" data-tag="{{tag}}">
+          {%- if task.result %}
+            {{ info_columns(task, 'finished') }}
+            <div class="col-sm-3 vertical-links">
+              {{ cancel_button('Dismiss', tag) }}
+            </div>
+          {%- else %}
+            {{ info_columns(task, 'finished', failed=true) }}
+            <div class="col-sm-3 vertical-links">
+              {{ cancel_button('Dismiss', tag) }}
+              {{ log_button(task) }}
+              {{ ticket_button(task, tag) }}
+            </div>
+          {%- endif %}
+        </div>
+        {%- endfor %}
+      </div>
+    </div>
+    <div id="restorations-queued" class="col-sm-6">
+      <p><strong>Restorations in Queue</strong></p>
+      <div class="queue pad-left">
+        {% if restore_queue["queued"]|length == 0 and restore_queue["running"]|length == 0 %}
+        <div class="well row restore-item-div">
+          No queued restorations to display.
+        </div>
+        {% endif %}
+        {%- for queue in ('queued', 'running') %}
+          {%- for task in restore_queue[queue] %}
+          {%- set tag = 'restore::root::{0[task]}::{0[stamp]}'.format(task) %}
+            <div class="well tagged-item row restore-item-div{% if tag not in prev_tags_loaded %} restore-item-new{% endif %}" data-tag="{{tag}}">
+              {{ ongoing_item(task, queue, 'cancel', tag) }}
+            </div>
+          {%- endfor %}
+        {%- endfor %}
+      </div>
+    </div>
+  </div>
+</div>

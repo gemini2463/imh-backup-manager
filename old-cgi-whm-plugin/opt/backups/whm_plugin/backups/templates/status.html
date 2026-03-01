@@ -1,0 +1,91 @@
+{# vim: ts=2:sw=2:et:ft=jinja-html #}
+
+{% macro show_task(queue, task) %}
+    {% set queue_str = "failover_{}".format(queue) if task.get('failover', False) else queue %}
+    {% if queue == 'backup' %}
+        {% if task['geo'] %}
+            {{ status['geo'].name }}::{{ queue_str }}::{{ task['user'] }}::{{ task['task'] }}
+        {% else %}
+            {{ status['cluster'].name }}::{{ queue_str }}::{{ task['user'] }}::{{ task['task'] }}
+        {% endif %}
+    {% else %}
+        {{ queue_str }}::{{ task['user'] }}::{{ task['task'] }}
+    {% endif %}
+    queued={{ task['stamp'] | stamp2date }}
+    {% if queue == 'backup' %}
+        fails={{ task['fails'] }}
+        {% if task['delay_until'] > now %}fail-wait{% endif %}
+    {% endif %}
+    {% for stamp, line in task['log'] %}
+    <br />
+    <code>{{ stamp | stamp2date }} {{ line.strip().replace('\n', '\n     ') }}</code>
+    {% endfor %}
+{% endmacro %}
+
+{% macro show_worker(label, worker) %}
+<li>
+    {{ label }} Worker: {{ worker['state'] }}
+    {% if worker['procs'] %}
+        {% for pid, proc_args in worker['procs'].items() %}
+        <br />
+        <code>\_ {{ pid }} {{ proc_args | shlex_join }}</code>
+        {% endfor %}
+
+    {% endif %}
+</li>
+{% endmacro %}
+
+{% for state in ('queued', 'running') %}
+    {% for queue in ('backup', 'restore') %}
+        <h3>{{ queue.title() }}s {{ state.title() }}</h3>
+        {% if status['{}_queue'.format(queue)][state] %}
+        <div class="well">
+            {% for task in status['{}_queue'.format(queue)][state] %}
+                {{ show_task(queue, task) }}
+            {% endfor %}
+        </div>
+        {% else %}
+            <p>None.</p>
+        {% endif %}
+    {% endfor %}
+{% endfor %}
+
+<h3>Maintenance Tasks</h3>
+{% if has_maint_tasks %}
+    <div class="well">
+        {% for maint_type, buckets in status['maint_queues'].items() %}
+            {% for bucket in buckets %}
+                <p>{{ maint_type }}: {{ bucket }}</p>
+            {% endfor %}
+        {% endfor %}
+    </div>
+{% else %}
+<p>None.</p>
+{% endif %}
+
+<h3>Workers</h3>
+<div class="well">
+    <ul>
+    <li>Quota Runner: {{ status['quota_runner'] }}</li>
+    {% for worker in status['backup_workers'] %}
+        {{ show_worker('Backup', worker) }}
+    {% endfor %}
+    {% for worker in status['restore_workers'] %}
+        {{ show_worker('Restore', worker) }}
+    {% endfor %}
+    </ul>
+</div>
+
+{% if sched_start %}
+<h2>Scheduler</h2>
+<div class="alert alert-warning" role="alert">
+Warning: The task scheduler has been running since {{ sched_start }}.
+</div>
+{% endif %}
+
+{% for name, msg in probs.items() %}
+<h3>{{ name.replace('_', ' ').title() }}</h3>
+<div class="alert alert-danger" role="alert">
+    <p>{{ msg }}</p>
+</div>
+{% endfor %}

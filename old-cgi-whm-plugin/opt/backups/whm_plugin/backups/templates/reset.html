@@ -1,0 +1,146 @@
+{# vim: ts=2:sw=2:et:ft=jinja-html #}
+{% macro show_key(key) %}
+  {% if key == 'dirs' %}
+    System Directories
+  {% elif key == 'peak' %}
+    Peak-Hour Maximum
+  {% elif key == 'off' %}
+    Off-Hour Maximum
+  {% elif key == 'cpuser_enable' %}
+    Database Backups Enabled for Cpanel users
+  {% else %}
+    {{ key.replace('_', ' ').title() }}
+  {% endif %}
+{% endmacro %}
+
+{% macro same() %}
+<span class="text-success">No Change</span><br />
+{% endmacro %}
+
+{% macro show_val(val) %}
+  {% if val is iterable and val|length == 0 %}
+    None
+  {% elif val is list %}
+    {% if val[0] is number %}
+      {{ val|sort|join(',') }}
+    {% else %}
+      <div class="pad-left">
+        {% for item in val|sort %}
+          {{ item }}<br />
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% else %}
+    {{ val|tojson }}
+  {% endif %}
+{% endmacro %}
+
+{% macro show_mult(val) %}
+  {% if val['multiply_cores'] %}
+    {{ val['max'] * cores }}
+  {% else %}
+    {{ val['max'] }}
+  {% endif %}
+{% endmacro %}
+
+{% macro show_interval(val) %}
+  {% if val['use_interval'] %}
+    Every {{ val['interval'] }} day(s)
+  {% else %}
+    {{ val['hour']|hour_from_24 }} {{ val['days']|days_from_ints|join(',') }}
+  {% endif %}
+{% endmacro %}
+
+{% macro show_dbs(val) %}
+  {% if val['mode'] == 'whitelist' %}
+    {{ show_val(val['custom']) }}<br />
+  {% elif val['mode'] == 'blacklist' %}
+    All Root databases except:<br />{{ show_val(val['custom']) }}
+  {% else %}
+    All Root Databases
+  {% endif %}
+{% endmacro %}
+
+{% macro show_paths(old, new) %}
+  {% if paths_same(old['paths'], new['paths']) %}
+    {{ same() }}
+  {% else %}
+    {{ show_val(old['paths']) }} <strong>&#10132;</strong> {{ show_val(new['paths']) }}
+  {% endif %}
+  <Strong>Excludes</strong>
+  {% if paths_same(old['exclude'], new['exclude']) %}
+    {{ same() }}
+  {% else %}
+    {{ show_val(old['exclude']) }} <strong>&#10132;</strong> {{ show_val(new['exclude']) }}
+  {% endif %}
+{% endmacro %}
+
+{% macro show_data_included(old, new) %}
+  {% if 'paths' in new %}
+    <Strong>Paths</strong>
+    {{ show_paths(old, new) }}
+  {% else %}
+    <Strong>Databases</strong>
+    {% if old['custom'] == new['custom'] and old['mode'] == new['mode'] %}
+      {{ same() }}
+    {% else %}
+      <div class="pad-left">
+        {{ show_dbs(old) }} <strong>&#10132;</strong> {{ show_dbs(new) }}
+      </div>
+    {% endif %}
+  {% endif %}
+{% endmacro %}
+
+{% macro show_sched(key, orig, val) %}
+  <strong>{{show_key(key)}}</strong>
+  <div class="pad-left">
+    <strong>Enable</strong>
+    {% if orig['enable'] == val['enable'] %}
+        {{ same() }}
+      {% else %}
+        {{ orig['enable'] }} <strong>&#10132;</strong> {{ val['enable'] }}<br />
+      {% endif %}
+    {% if val['enable'] %}
+      <Strong>Schedule</strong>
+      {% if orig['use_interval'] == val['use_interval']
+         and orig['interval'] == val['interval']
+         and orig['days'] == val['days']
+         and orig['hour'] == val['hour']
+      %}
+        {{ same() }}
+      {% else %}
+        {{ show_interval(orig)}} <strong>&#10132;</strong> {{ show_interval(val) }}<br />
+      {% endif %}
+      {{ show_data_included(orig, val) }}
+    {% endif %}
+  </div>
+{% endmacro %}
+
+{% macro diff(items, orig) %}
+  {% for key, val in items.items() %}
+    {% if val is conf_sched %}
+      {{ show_sched(key, orig[key], val) }}
+    {% elif val is conf_dict %}
+      <strong>{{show_key(key)}}</strong>
+      <div class="pad-left">
+        {{ diff(val, orig[key]) }}
+      </div>
+    {% elif val is conf_mult %}
+      <strong>{{show_key(key)}}</strong>
+      {% if orig[key] == val %}
+        {{ same() }}
+      {% else %}
+        {{ show_mult(orig[key]) }} <strong>&#10132;</strong> {{ show_mult(val) }}<br />
+      {% endif %}
+    {% else %}
+      <strong>{{show_key(key)}}</strong>
+      {% if orig[key] == val %}
+        {{ same() }}
+      {% else %}
+        {{ show_val(orig[key]) }} <strong>&#10132;</strong> {{ show_val(val) }}<br />
+      {% endif %}
+    {% endif %}
+  {% endfor %}
+{% endmacro %}
+
+{{ diff(reset_items, old_conf) }}

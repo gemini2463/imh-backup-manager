@@ -1,0 +1,24 @@
+{# vim: ts=2:sw=2:et:ft=jinja-html #}
+{% from "macros.html" import img, stylesheet without context %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Backup Manager</title>
+  {% block head %}{% endblock %}
+  {{ stylesheet('3rdparty/bootstrap/css/bootstrap.min.css') -}}
+  {{ stylesheet('backups.css', cache_bust=true) -}}
+</head>
+<body>
+  <header>
+    <div class="info-wrapper">
+      <a href="../">Return to WHM</a>
+    </div>
+    <div class="title-wrapper">
+      <h1 class="text-left text-nowrap">{{ img('backup_mgr.png') }} Backup Manager</h1>
+    </div>
+  </header>
+  {% block content %}{% endblock %}
+  <footer></footer>
+</body>
+</html>

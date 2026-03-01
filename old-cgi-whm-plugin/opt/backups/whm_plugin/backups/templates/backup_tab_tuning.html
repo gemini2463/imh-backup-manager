@@ -1,0 +1,211 @@
+{# vim: ts=2:sw=2:et:ft=jinja-html #}
+{% from "macros.html" import checkbox, button, alert, num_input, text_input, help without context %}
+
+{% macro max_mult(id, label, val, mult, step) -%}
+{# Used for parts of forms which may have an option to multiply a setting by CPU cores #}
+<div class="pad-left mult-group">
+  <p>{{ label }}
+  {{ num_input(
+    id='{}-input'.format(id),
+    val=val,
+    min=step,
+    max=64,
+    step=step,
+    trigger="mult_change();",
+    disabled=salt_managed
+  ) }}</p>
+  {% if cores > 1 %}
+    {{ checkbox(
+      id,
+      'Multiply by CPU cores ({})'.format(cores),
+      mult,
+      false,
+      trigger="mult_change();",
+      disabled=salt_managed
+    ) }}
+    <h3>Total: <span data-cores="{{ cores }}" class="mult-total">(error)</span></h3>
+  {% endif %}
+</div>
+{% endmacro -%}
+
+{% macro server_load_max(load_conf, parallel_conf, label, description='') %}
+{# Shows form to pick max load for backups or restores #}
+{% set prefix = label.lower().replace(' ', '-') %}
+  <h3>Max Server {{label}} Load</h3>
+  {% if description %}
+  <p>{{ description }}</p>
+  {% else %}
+  <p>Intensive {{label.lower()}} processes will attempt to pause and resume based on server load to
+  avoid causing instability based on the settings below.</p>
+  {% endif %}
+  <div class="pad-left">
+    <h3>Select Peak Hours</h3>
+    <div class="pad-left">
+      <p>These are the hours when you expect your site(s) to have the least traffic and
+      {{label.lower()}}s are able to run at a higher maximum server load. <em>Timezone is server time ({{tzone}}).</em></p>
+      <div class="form-group">
+          Peak Hours
+          <select id="{{ prefix }}-peak-hours" class="peak-hours" multiple="multiple">
+{%- for hour in range(24) %}
+            <option value="{{ hour }}"
+              {%- if hour in load_conf.peak_hours %} selected="selected"{% endif %}
+              {%- if salt_managed %} disabled="disabled"{% endif %}>
+              {{ hour|hour2timespan }}
+            </option>
+{%- endfor %}
+          </select>
+        </div>
+    </div>
+    {% set load_help = "This is the maximum server load during the hours you <em>{0}</em> above before {1}s will pause.
+    <hr />If set too low, {1}s may never complete.If set too high, the server may become
+    unresponsive. In general, you don't want the server load to go above {2}." %}
+    <h3>Peak-Hours Load {{ help(load_help.format('select', label.lower(), cores)) }}</h3>
+    {{ max_mult(
+        id='{}-peak-load'.format(prefix),
+        label='Peak-Hours Max Load',
+        val=load_conf.peak.max,
+        mult=load_conf.peak.multiply_cores,
+        step=0.01
+    ) }}
+    <h3>Off-Hours Load {{ help(load_help.format('leave unselected', label.lower(), cores)) }}</h3>
+    {{ max_mult(
+        id='{}-off-load'.format(prefix),
+        label='Off-Hours Max Load',
+        val=load_conf.off.max,
+        mult=load_conf.off.multiply_cores,
+        step=0.01
+    ) }}
+    <h3>Pausing Behavior</h3>
+    <div class="pad-left">
+      <p>When the max server load is reached, {{label.lower()}} processes will intermittently resume for a moment and pause again.
+        {% if label == 'Cache Calculation' %}
+        This prevents the cron from hanging indefinitely.
+        {% else %}
+        This prevents the processes from failing due to network or database timeouts.
+        {% endif %}
+      </p>
+      <p>Sleep Seconds {{ num_input('{}-sleep-secs'.format(prefix), load_conf.sleep_secs, 0, 180, 0.1, disabled=salt_managed) }}</p>
+      <p>Run Seconds {{ num_input('{}-run-secs'.format(prefix), load_conf.run_secs, 0, 180, 0.1, disabled=salt_managed) }}</p>
+    </div>
+  </div>
+  {% if svr_class != 'imh_vps' %}
+  <hr />
+  <h3>{{label}} Parallel Processing</h3>
+  <div class="pad-left">
+    <p>This is how many {{label.lower()}} processes are allowed to run at the same time.</p>
+    {{ max_mult(
+        id='{}-parallel'.format(prefix),
+        label='Parallel Processes',
+        val=parallel_conf.max,
+        mult=parallel_conf.multiply_cores,
+        step=1
+    ) }}
+  </div>
+  {% if label == 'Backup' and not is_shared %}
+    {# restore form not shown on ded, so put the restore parallel section here #}
+    <hr />
+    <h3>Restore Parallel Processing</h3>
+    <div class="pad-left">
+      <p>This is how many restore processes are allowed to run at the same time.</p>
+      {{ max_mult(
+          id='restore-parallel',
+          label='Parallel Processes',
+          val=parallel_conf.max,
+          mult=parallel_conf.multiply_cores,
+          step=1
+      ) }}
+    </div>
+  {% endif %}
+{% endif %}
+{% endmacro %}
+
+<p>
+  <strong>The defaults in this tab should be fine for most cases.</strong>
+  This tab is for tweaking variables that impact the way backups perform and prevent them from impacting website performance.
+</p>
+<div class="well">
+{% if is_shared %}
+  <div class="row">
+    <div class="col-md-6">
+{% endif %}
+      {{ server_load_max(sys_conf.backup_load, sys_conf.parallel.backup, 'Backup') }}
+      <hr />
+      <div class="pad-left">
+        <h3>Max CPU cores</h3>
+        <div class="pad-left">
+          <p>Max CPU cores used per backup process. (0 = unlimited)</p>
+          <p>{{ num_input('max_cpus', val=sys_conf.max_cpus, min=0, max=none, step=1, disabled=salt_managed) }}</p>
+        </div>
+      </div>
+      <hr />
+      <div class="pad-left">
+        <h3>Bandwidth</h3>
+        <div class="pad-left">
+          <p>This bandwidth limit is per backup process.</p>
+          <p>Upload Bandwidth Limit {{
+            num_input('bwlimit', val=sys_conf.bwlimit, min=0, max=none, step=1, disabled=salt_managed)
+          }} Kbit/s (0 = unlimited)</p>
+        </div>
+      </div>
+{% if is_shared %}
+    </div>
+    <div class="col-md-6">
+      {{ server_load_max(sys_conf.restore_load, sys_conf.parallel.restore, 'Restore') }}
+    </div>
+  </div>
+{% endif %}
+</div>
+{% if svr_class != 'imh_vps' %}
+<h2>Size Calculation Cron</h2>
+<div class="well">
+{{ server_load_max(
+  sys_conf.pre_cache_load, sys_conf.parallel.pre_cache, 'Cache Calculation',
+  "To keep up with backup scheduling, some account size information is cached ahead of time. These processes can be tuned like the backup processes themselves."
+) }}
+</div>
+{% endif %}
+<h2>Logging</h2>
+<div class="well">
+  <div class="pad-left">
+    <p><strong>Filter what gets logged in /var/log/backup-runner.log by choosing a Log Level</strong></p>
+    <p>It's usually best to leave this as INFO unless troubleshooting something.</p>
+    <div class="form-group pad-left">
+      {% set loglevels = (
+        ('DEBUG', 'Shows everything'),
+        ('INFO', 'Shows info, warning, error, & critical'),
+        ('WARNING', 'Shows warning, error, & critical'),
+        ('ERROR', 'Shows error & critical'),
+        ('CRITICAL', 'Only shows critical')
+      ) %}
+      {% for level, level_label in loglevels %}
+        <div class="radio"><label>
+          <input type="radio" name="loglevel" value="{{level}}"
+          {%- if sys_conf.loglevel == level %} checked="chacked"{% endif %}
+          {%- if salt_managed %} disabled="disabled"{% endif %} />
+          {{level}}: {{level_label}}
+        </label></div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+<h2>Temporary Files</h2>
+<div class="well">
+  <p>While backup processes are running, this is where they will store temporary files</p>
+  {{ text_input(id='restic-tmp', value=sys_conf.restic_tmp, label='TMPDIR', disabled=salt_managed) }}
+</div>
+
+<h2>Plugins</h2>
+<div class="well">
+  <p>Timeout for cPanel plugins' processes used to estimate account sizes. Accounts with a lot of inodes may hit this timeout, making disk usage not display in the UI, but still allowing the plugin to load.</p>
+  <p>{{ num_input('plugin-du-timeout', val=sys_conf.plugin_du_timeout, min=1, max=none, step=1, disabled=salt_managed) }} secs</p>
+</div>
+
+<div class="row">
+  <div class="col-sm-6">
+    {{ button('Save System Tuning Settings', 'save_tuning(this);', disabled=salt_managed) }}
+    {{ alert('save-tuning', 'msg')}}
+  </div>
+  <div class="col-sm-6 text-right">
+    {{ button('Reset System Tuning Settings', "reset_modal('tuning', 'System Performance Tuning');", class="btn-warning btn-sm brn-reset", disabled=salt_managed) }}
+  </div>
+</div>

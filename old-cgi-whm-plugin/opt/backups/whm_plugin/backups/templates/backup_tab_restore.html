@@ -1,0 +1,178 @@
+{# vim: ts=2:sw=2:et:ft=jinja-html #}
+{% from "macros.html" import button, radio, alert, text_input without context %}
+
+{% macro db_restore(title, bak_type) -%}
+<h2>Restore a {{ title }} Backup</h2>
+<div class="well">
+  {% if completed|has_items(bak_type) %}
+    <div class="row form-group">
+      <div class="col-sm-2 restore-label">
+        {% if show_geo %}
+        <label for="{{ bak_type }}-date">Restore from date &amp; cluster</label>
+        {% else %}
+        <label for="{{ bak_type }}-date">Restore from date</label>
+        {% endif %}
+      </div>
+      <div class="col-sm-10">
+        <select class="db-date-select form-control" id="{{ bak_type }}-date" data-dbselect="#{{ bak_type }}-dbname" onchange="db_date_changed('#{{ bak_type }}-date');">
+          {% for item in completed[bak_type] %}
+            <option data-dbs='{{ item["dbs"]|tojson }}' data-stamp="{{ item['time'] }}" data-geo="{{ item['geo'] }}" value="{{ item['geo'] }}:{{ item['time'] }}"{% if loop.last %} selected {% endif %}>
+              {{ date_select_label(show_geo, geo, cluster, item) }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="row form-group">
+      <div class="col-sm-2 restore-label">
+        <label for="{{ bak_type }}-dbname">Select a database</label>
+      </div>
+      <div class="col-sm-10">
+        <select id="{{ bak_type }}-dbname" class="form-control"></select>
+      </div>
+    </div>
+    <div class="row form-group">
+      <div class="col-sm-2 restore-label">
+        <label for="{{ bak_type }}-path">Dump Path</label>
+      </div>
+      <div class="col-sm-10">
+        {{ text_input(id='{}-path'.format(bak_type), value="/root/restored") }}
+      </div>
+    </div>
+    <div class="row form-group">
+      <div class="col-sm-2 restore-label">
+        <label>Restore Method</label>
+      </div>
+      <div class="col-sm-10">
+        {{ radio('{}-method'.format(bak_type), 'target', true, 'Dump backup to path above') }}
+        {{ radio('{}-method'.format(bak_type), 'dump_import', false, 'Dump current database to path above and overwrite current database with the backup') }}
+      </div>
+    </div>
+    <div class="row form-group">
+      <div class="col-sm-2 complete-email-label">
+        <label form="{{bak_type}}-completion-email">Email to notify on completion (optional)</label>
+      </div>
+      <div class="col-sm-10">
+        {{ text_input(id="{}-completion-email".format(bak_type), class="email-input", value='', email=true) }}
+      </div>
+    </div>
+    <div class="restore-confirm" data-shown="false">
+      <div class="row">
+        <div class="row">
+        <div class="col-sm-2"></div>
+        <div class="col-sm-10 restore-button-label">
+          <p>Clicking Restore will queue the restoration immediately, and restoring a backup is irreversible.</p>
+          <p class="restore-confirm-msg">Are you sure you want to proceed with the restore?</p>
+        </div>
+      </div>
+      <div class="row form-group">
+        <div class="col-sm-2">
+          {{ button('Restore', "restore_db('{}', this);".format(bak_type), class="btn-primary btn-block") }}
+        </div>
+        <div class="col-sm-1 restore-alert-cancel">
+          <a href="#" role="button" onclick="hide_confirm(this);">Cancel</a>
+        </div>
+        <div class="col-sm-9 restore-form-error">
+          {{ alert('restore-{}'.format(bak_type), 'msg') }}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% else %}
+    You don't have any {{ title }} backups to restore from.
+  {% endif %}
+</div>
+{% endmacro -%}
+
+<p>This tab allows restorations of system backups which are not associated to an individual cPanel user.</p>
+
+{{ alert('timer-error', 'msg') }}
+{{ alert('queue-msg', 'msg') }}
+<h2>Restorations <small id="refreshing">Refreshing in <span data-dur="15" id="timer">15</span> seconds</small></h2>
+<div id="restorations-div">
+{% include "restore_queue.html" %}
+</div>
+
+{% if not down_error %}
+<h2>Restore a System Backup</h2>
+<div class="well">
+  {% if completed|has_items('dirs') %}
+    <div class="row form-group">
+      <div class="col-sm-2 restore-label">
+        {% if show_geo %}
+        <label for="dirs-date">Restore from date &amp; cluster</label>
+        {% else %}
+        <label for="dirs-date">Restore from date</label>
+        {% endif %}
+      </div>
+      <div class="col-sm-10">
+        <select id="dirs-date" class="form-control">
+          {% for item in completed['dirs'] %}
+            <option data-geo="{{ item['geo'] }}" data-snap="{{ item['snap'] }}" data-stamp="{{ item['time'] }}" value="{{ item['geo'] }}:{{ item['time'] }}"{% if loop.last %} selected {% endif %}>
+              {{ date_select_label(show_geo, geo, cluster, item) }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="row form-group">
+      <div class="col-sm-2 restore-label">
+        <label>Select Files</label>
+      </div>
+      <div class="col-sm-10">
+        <div class="filebrowser-selectall">
+          {{ button('Select All', "filebrowser_selectall('#restore-filebrowser', true);", 'btn-default btn-sm') }}
+          {{ button('Deselect All', "filebrowser_selectall('#restore-filebrowser', false);", 'btn-default btn-sm') }}
+          <div class="alert alert-danger alert-msg hidden" id="alert-restore-browser-error">
+              <i class="glyphicon glyphicon-exclamation-sign"></i> <span></span>
+          </div>
+        </div>
+        <p>Click folders to expand them. Click checkboxes to select them to be restored.</p>
+        <div id="restore-filebrowser" data-errors="#alert-restore-browser-error" data-post-uri="./backups.cgi" data-post-action="browse" data-home-path="/" class="file_browse"></div>
+        <div class="col-sm-10"><span class="count-zero"><span class="filebrowser-count" data-browser="#restore-filebrowser" data-has-items-func="dirs_restore_enable">0</span> items selected.</span></div>
+      </div>
+    </div>
+    <div class="row form-group">
+      <div class="col-sm-2 restore-label">
+        <label>Restore Method</label>
+      </div>
+      <div class="col-sm-10">
+        {{ radio('dirs-method', 'merge', false, 'Restore to the original path: this replaces the files that are different and keeps files not found in the backup') }}
+        {{ radio('dirs-method', 'target', true, 'Restore to a different folder <input id="dirs-target" class="form-control text-input" value="/root/restored" />') }}
+      </div>
+    </div>
+    <div class="row form-group">
+      <div class="col-sm-2 complete-email-label">
+        <label form="dirs-completion-email">Email to notify on completion (optional)</label>
+      </div>
+      <div class="col-sm-10">
+        {{ text_input(id="dirs-completion-email", class="email-input", value='', email=true) }}
+      </div>
+    </div>
+    <div class="restore-confirm" data-shown="false">
+      <div class="row">
+        <div class="col-sm-2"></div>
+        <div class="col-sm-10 restore-button-label">
+          <p>Clicking Restore will queue the restoration immediately, and restoring a backup is irreversible.</p>
+          <p class="restore-confirm-msg">Are you sure you want to proceed with the restore?</p>
+        </div>
+      </div>
+      <div class="row form-group">
+        <div class="col-sm-2">
+          {{ button('Restore', 'restore_dirs(this);', class="btn-primary btn-block", id='dirs-restore-confirm-button', disabled=true) }}
+        </div>
+        <div class="col-sm-1 restore-alert-cancel">
+          <a href="#" role="button" onclick="hide_confirm(this);">Cancel</a>
+        </div>
+        <div class="col-sm-9 restore-form-error">
+          {{ alert('restore-dirs', 'msg') }}
+        </div>
+      </div>
+    </div>
+  {% else %}
+    You don't have any system backups to restore from.
+  {% endif %}
+</div>
+{{ db_restore('MySQL', 'mysql') }}
+{{ db_restore('PgSQL', 'pgsql') }}
+{% endif %}

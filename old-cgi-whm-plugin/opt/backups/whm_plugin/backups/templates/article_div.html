@@ -1,0 +1,16 @@
+{# vim: ts=2:sw=2:et:ft=jinja-html #}
+<div class="alert alert-info">
+  <p>The Backup Manager feature allows you to utilize InMotion Hosting's
+  automated backup system to retain and secure your data off server. From
+  this interface you can view your current backup storage capacity, specify
+  which data is backed up and how often, as well as perform data restorations/
+  Additional backup storage blocks can be purchased from the AMP Marketplace.</p>
+  <p>For additional information, please visit
+  <a href="https://www.inmotionhosting.com/support/website/backup-and-restore/backup-manager-whm-vps-dedicated/" target="_blank">our Support Center Articles.</a></p>
+  {% if svr_class == 'imh_vps' %}
+  <br />
+  <p>The High Availability Cloud VPS product also offers
+  <a href="https://www.inmotionhosting.com/support/high-availability/snapshots" target="_blank">complete snapshots</a>
+  as another method of backing up your data and configuration.</p>
+  {% endif %}
+</div>

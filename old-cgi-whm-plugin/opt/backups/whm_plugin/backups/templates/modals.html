@@ -1,0 +1,64 @@
+{# vim: ts=2:sw=2:et:ft=jinja-html #}
+{% from "macros.html" import alert without context %}
+
+<div class="modal fade" id="log-modal" role="dialog">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal">&times;</button>
+        <h4 class="modal-title">Fail Log</h4>
+      </div>
+      <div class="modal-body" id="log-modal-body">Error displaying log</div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="ticket-modal" role="dialog">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal">&times;</button>
+        <h4 class="modal-title">Submit a Ticket</h4>
+      </div>
+      <div class="modal-body">
+        <p>Logs will be included in the ticket for troubleshooting.</p>
+        <p>Please include any additional information or requests here:</p>
+        <textarea id="ticket-body" class="form-control" rows="6" cols="80"></textarea>
+      </div>
+      <div class="modal-footer">
+        {{ alert('ticket-error', 'msg') }}
+        <button id="ticket-do-btn" type="button" class="btn btn-primary" onclick="make_ticket();">Submit Ticket</button>
+        <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="reset-confirm" role="dialog">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal">&times;</button>
+        <h4 class="modal-title">Reset Settings?</h4>
+      </div>
+      <div class="modal-body">
+        <p>
+          <strong>
+            <i class="fa fa-exclamation-triangle text-danger"></i>
+            Reset all settings in the <em id="reset-tab-name">(ERROR)</em> tab to defaults?
+          </strong>
+        </p>
+        <p id="reset-diff-loading"><i class="fa fa-spinner fa-spin"></i> Loading...</p>
+        <div id="reset-diff"></div>
+      </div>
+      <div class="modal-footer">
+        {{ alert('reset-error', 'msg') }}
+        <button id="reset-confirm-button" type="button" class="btn btn-danger" onclick="confirm_reset(this);">Reset</button>
+        <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>

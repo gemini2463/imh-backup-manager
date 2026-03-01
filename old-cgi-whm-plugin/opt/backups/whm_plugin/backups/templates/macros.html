@@ -1,0 +1,102 @@
+{# vim: ts=2:sw=2:et:ft=jinja-html #}
+{% macro stylesheet(file, cache_bust=false) -%}
+{# The RPM spec will sed replace RMP_VERSION_REPLACE -#}
+<link rel="stylesheet" href="../backups/static/{{file}}{% if cache_bust %}?v=3.8.6.1{% endif %}" />
+{% endmacro %}
+
+{% macro script(file, cache_bust=false) -%}
+<script type="text/javascript" src="../backups/static/{{file}}{% if cache_bust %}?v=3.8.6.1{% endif %}"></script>
+{% endmacro %}
+
+{% macro img(src) %}
+<img src="../backups/static/{{src}}" />
+{% endmacro %}
+
+{% macro button(text, onclick, class="btn-primary", disabled=False, id=none) %}
+<button {% if id is not none %}id="{{id}}" {% endif %}onclick="{{onclick|safe}}" class="btn {{class}}"{% if disabled %} disabled="disabled"{% endif %}>{{text}}</button>
+{% endmacro %}
+
+{% macro num_input(id, val, min, max, step=1, trigger=none, disabled=false) %}
+<input type="number" class="num-input form-control"
+{%- if id is not none %} id="{{id}}" {% endif -%}
+value="{{val}}" step="{{step}}" min="{{min}}"
+{%- if max is not none %} max="{{max}}"{% endif %}
+{%- if trigger is not none %} onkeyup="{{trigger}}" onmouseup="{{trigger}}" {% endif %}
+{%- if disabled %} disabled="disabled"{% endif %} />
+{% endmacro %}
+
+{% macro text_input(id, value, label=none, email=false, class='', disabled=false) %}
+  {%- if label is not none %}
+<div class="form-group form-inline">
+  <label for="{{id}}">
+    {{label}}
+  </label>
+  {%- endif %}
+  <input id="{{id}}" class="form-control {{ class }}" value="{{value}}"
+  {%- if email %} onkeyup="validate_email(this);" onchange="validate_email(this);" placeholder="user@example.com"{% endif %}
+  {%- if disabled %} disabled="disabled"{% endif %} />
+  {%- if email %}
+  <i class="email-error fa fa-times hidden">Invalid Email</i>
+  {%- endif %}
+{%- if label is not none -%}
+</div>
+{%- endif %}
+{% endmacro %}
+
+{% macro checkbox(id, text, checked, inline, trigger=none, disabled=false) %}
+<div class="checkbox">
+  <label
+    {%- if inline %} class="checkbox-inline"{% endif %}>
+    <input type="checkbox" id="{{id}}-checkbox"
+    {%- if checked %} checked="checked"{% endif %}
+    {%- if trigger is not none %} onchange="{{trigger|safe}}"{% endif %}
+    {%- if disabled %} disabled="disabled"{% endif %} />
+    {{text}}
+  </label>
+</div>
+{% endmacro %}
+
+{% macro help(help_text) %}
+<a tabindex="0" class="help" role="button" data-toggle="popover" data-trigger="focus" data-html="true" data-content="{{help_text|safe}}">
+  <i class="fa fa-info-circle"></i>
+</a>
+{% endmacro %}
+
+{% macro dropdown(id, val, opts) %}
+<select id="{{id}}" class="form-control select-input">
+  {% for opt in opts %}
+    <option {% if opt == val %}selected="selected" {% endif %}value="{{opt}}">{{opt}}</option>
+  {%- endfor %}
+</select>
+{% endmacro %}
+
+{% macro alert(id, level, text='') %}
+<div id="alert-{{id}}" class="alert alert-{{level}}">{{text}}</div>
+{% endmacro %}
+
+{% macro switch(enabled, id=none, yes_txt='Enabled', no_txt='Disabled', text='', size="normal", onchange=none, disable_switch=false, hides=none) %}
+<div class="checkbox{% if disable_switch %} disabled{% endif %}">
+  <label>
+    <input type="checkbox" class="checkbox-switch-input"
+    data-toggle="toggle" data-on="{{yes_txt}}" data-onstyle="primary" data-off="{{no_txt}}" data-offstyle="danger" data-size="{{size}}"
+    {% if id is not none %} id="{{id}}"{% endif %}
+    {%- if disable_switch %} disabled="disabled"{% endif %}
+    {%- if onchange is not none %} onchange="{{onchange|safe}}"{% endif %}
+    {%- if hides is not none %} data-hides="{{hides}}"{% endif %}
+    {%- if enabled %} checked="checked"{% endif %} />
+    {{ text }}
+  </label>
+</div>
+{% endmacro %}
+
+{% macro radio(name, val, checked, html, onchange=none, disabled=false) %}
+<div class="radio">
+  <label>
+    <input type="radio" name="{{name}}" value="{{val}}"
+    {%- if checked %} checked="checked"{% endif %}
+    {%- if disabled %} disabled="disabled"{% endif %}
+    {%- if onchange is not none %} onchange="{{onchange|safe}}"{% endif %} />
+      {{html|safe}}
+    </label>
+</div>
+{% endmacro %}

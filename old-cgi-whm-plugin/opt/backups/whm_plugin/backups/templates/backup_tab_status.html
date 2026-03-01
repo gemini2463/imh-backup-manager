@@ -1,0 +1,25 @@
+{# vim: ts=2:sw=2:et:ft=jinja-html #}
+<button id="status-refresh-btn" class="btn btn-sm btn-info" onclick="refresh_status_tab()">Refresh</button>
+<div id="status-data"></div>
+<script type="text/javascript">
+function refresh_status_tab(){
+    $('#status-refresh-btn').prop('disabled', true);
+    $.post({
+        url: './backups.cgi',
+        type: 'POST',
+        timeout: 120 * 1000,
+        data: {action: 'get_status'}
+    })
+    .done(function(html){
+        $('#status-data').html(html);
+        $('#status-refresh-btn').prop('disabled', false);
+    })
+    .fail(function(xhr, statusText, errorThrown){
+        console.log(xhr);
+        console.log(errorThrown);
+        $('#status-data').text(xhr.responseText);
+        $('#status-refresh-btn').prop('disabled', false);
+    });
+}
+refresh_status_tab();
+</script>

@@ -1,0 +1,80 @@
+{# vim: ts=2:sw=2:et:ft=jinja-html #}
+{% from "macros.html" import script, stylesheet, help, button, alert without context %}
+{% extends "base.html" %}
+{% block head %}
+  {{ script('3rdparty/jquery.min.js') -}}
+  {{ script('3rdparty/jquery-ui/jquery-ui.min.js') -}}
+  {{ script('3rdparty/bootstrap/js/bootstrap.min.js') -}}
+  {{ script('3rdparty/bootstrap-toggle/bootstrap-toggle.min.js') -}}
+  {{ script('3rdparty/bootstrap-multiselect/js/bootstrap-multiselect.js') -}}
+  {{ script('3rdparty/tag-it/js/tag-it.min.js') -}}
+  {{ script('restores.js', cache_bust=true) -}}
+  {{ script('backups.js', cache_bust=true) -}}
+  {{ script('reset.js', cache_bust=true) -}}
+  <script type="text/javascript">
+    // file_browse.js needs this
+    var $j = $;
+    window.filebrowse_img_root = '../backups/static/file_browse_imgs';
+    window.remote_ip = '{{ request.environ["REMOTE_HOST"] }}';
+  </script>
+  {{ script('file_browse.js', cache_bust=true) -}}
+  {{ stylesheet('3rdparty/jquery-ui/jquery-ui.min.css') -}}
+  {{ stylesheet('3rdparty/bootstrap-toggle/bootstrap-toggle.min.css') -}}
+  {{ stylesheet('3rdparty/bootstrap-multiselect/css/bootstrap-multiselect.css') -}}
+  {{ stylesheet('3rdparty/tag-it/css/jquery.tagit.css') -}}
+  {{ stylesheet('3rdparty/Font-Awesome/css/font-awesome.min.css') -}}
+{% endblock %}
+{% macro nav_tab_item(label, href, class="nav-item") %}
+  <li class="{{class}}">
+    <a class="nav-link" data-toggle="tab" href="{{href}}">{{label}}</a>
+  </li>
+{% endmacro %}
+{% macro tab_pane(id, incl, class="tab-pane") %}
+<div id="{{id}}" class="{{class}}">
+  {% include incl %}
+</div>
+{% endmacro %}
+{% block content %}
+  <div id="loading-div"><div><i class="fa fa-spin fa-spinner"></i></div></div>
+  <div id="svr-class" class="d-none" data-svr-class="{{svr_class}}" data-salt-managed="{{salt_managed|tojson}}"></div>
+
+{% include "article_div.html" %}
+
+{% include "modals.html" %}
+
+{% set total_used = ((sys_cache.sys_total + cpuser_total) / 1024)|round(2) %}
+<p id="total-usage">Space Required for all Scheduled Backups: {{ total_used }} GiB
+  {% if quota_gb is not none %}{# it will be None on shared #}
+    {% set avail = quota_gb - total_used %}
+    {% if avail > 0 %}{# under quota #}
+      ({{ avail|round(2) }}/{{ quota_gb }} GiB remain)
+    {% else %}{# over quota #}
+      ({{ (-1 * avail)|round(2) }} more GiB needed)
+    {% endif %}
+  {% endif %}
+  <span id="size-unknown">
+  {{ help('This size is from cache. If cPanel accounts change sizes or you change backup settings here, this may take time to reflect those changes.') }}
+  </span>
+  <a class="btn btn-primary" href="https://secure1.inmotionhosting.com/amp/marketplace/backups/" target="_blank">Purchase Backup Space</a>
+</p>
+
+{% if down_error %}
+  {{ alert('down', 'danger', down_error) }}
+{% endif %}
+
+  <ul class="nav nav-tabs">
+    {{ nav_tab_item('Backup Settings', '#settings-tab', 'nav-item active') }}
+    {{ nav_tab_item('Perform a Restoration', '#restore-tab') }}
+    {{ nav_tab_item('Storage Breakdown', '#sizes-tab') }}
+    {{ nav_tab_item('Queue Status', '#status-tab') }}
+    {{ nav_tab_item('System Performance Tuning', '#tuning-tab') }}
+  </ul>
+  <div class="tab-content">
+    {{ tab_pane('settings-tab', 'backup_tab_settings.html', 'tab-pane active') }}
+    {{ tab_pane('restore-tab', 'backup_tab_restore.html') }}
+    {{ tab_pane('sizes-tab', 'backup_tab_sizes.html') }}
+    {{ tab_pane('status-tab', 'backup_tab_status.html') }}
+    {{ tab_pane('tuning-tab', 'backup_tab_tuning.html') }}
+  </div>
+</div>
+{% endblock %}

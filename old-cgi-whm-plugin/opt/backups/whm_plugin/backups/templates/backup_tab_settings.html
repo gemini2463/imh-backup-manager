@@ -1,0 +1,194 @@
+{# vim: ts=2:sw=2:et:ft=jinja-html #}
+{% from "macros.html" import button, num_input, dropdown, alert, switch, radio without context %}
+
+{% macro show_scheduling(bak_type, sys_bak_conf, installed=true) -%}
+{# Show scheduling options at the top of each of the backup sections #}
+{{ switch(
+  id='{}-enabled'.format(bak_type),
+  enabled=sys_bak_conf.enable and installed,
+  text='Enable or Disable Backups',
+  disable_switch=salt_managed or not installed,
+  onchange='enable_changed(this);',
+  hides='.hide-{}'.format(bak_type)
+) }}
+<div class="hide-{{bak_type}}">
+  <label>How often do you want your backups performed?</label>
+  <div class="pad-left">
+    {{ radio(
+      name='{}-sched'.format(bak_type),
+      val='interval',
+      checked=sys_bak_conf.use_interval,
+      html='By Interval',
+      onchange="$('#{0}-sched-daily').hide(); $('#{0}-sched-interval').show()".format(bak_type),
+      disabled=salt_managed
+    ) }}
+    <div class="pad-left" id="{{bak_type}}-sched-interval">
+      <p>Backup every {{ num_input(
+        '{}-interval'.format(bak_type),
+        val=sys_bak_conf.interval,
+        min=1,
+        max=90,
+        disabled=salt_managed
+      ) }} Days</p>
+    </div>
+    {{ radio(
+      name='{}-sched'.format(bak_type),
+      val="daily",
+      checked=not sys_bak_conf.use_interval,
+      html='By Day/Time',
+      onchange="$('#{0}-sched-daily').show(); $('#{0}-sched-interval').hide()".format(bak_type),
+      disabled=salt_managed
+    ) }}
+    <div id="{{ bak_type }}-sched-daily" class="pad-left">
+      <div class="form-group">
+        {% for day in week %}
+          <label class="checkbox-inline"><input
+            class="{{ bak_type }}-day-checkbox" type="checkbox"
+            value="{{ loop.index0 }}" {% if loop.index0 in sys_bak_conf.days %}checked="checked" {% endif %}/>
+            {{ day }}
+          </label>
+        {% endfor %}
+      </div>
+      <div class="form-group">
+        <p>At:
+          {% set task_hour, task_meridiem = split_hour(sys_bak_conf.hour) %}
+          {{ dropdown('{}-hour'.format(bak_type), val=task_hour, opts=range(1, 13)) }}
+          {{ dropdown('{}-meridiem'.format(bak_type), val=task_meridiem, opts=['AM', 'PM']) }}
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endmacro -%}
+
+{% macro db_settings(title, size_info, conf_obj, enabled_for_cpuser) %}
+{# Show a database backup config section for MySQL or PgSQL #}
+<h2>{{title}}</h2>
+<div class="well">
+  {% if not size_info.installed %}
+    {{ alert('{}-down'.format(title.lower()), 'warning', 'Warning: could not find an installation of {}'.format(title)) }}
+  {% elif size_info.down %}
+    {{ alert('{}-down'.format(title.lower()), 'danger', 'Warning: {} is currently inaccessible'.format(title)) }}
+  {% endif %}
+  <h3>Scheduling</h3>
+  <div class="pad-left">
+    {{ show_scheduling(title.lower(), conf_obj, size_info.installed) }}
+  </div>
+  <div class="hide-{{title.lower()}}">
+    <hr />
+    <h3>System Tables</h3>
+    {{ dbs_included(title.lower(), conf_obj, size_info.sizes) }}
+    <hr />
+  </div>
+  <h3>All cPanel Users</h3>
+  <div class="pad-left">
+    {{ switch(
+      id='{}-cpuser-enabled'.format(title.lower()),
+      enabled=enabled_for_cpuser and size_info.installed,
+      text='Can cPanel users enable {} Backups?'.format(title),
+      disable_switch=salt_managed or not size_info.installed
+    ) }}
+  </div>
+  {{ button('Save {} Settings'.format(title), "save_settings_db('{}', this);".format(title.lower()), disabled=salt_managed) }}
+  {{ alert('save-{}'.format(title.lower()), 'msg') }}
+</div>
+{% endmacro %}
+
+{% macro dbs_included(bak_type, sys_bak_conf, sizes) -%}
+{# show the database mode selection form #}
+<div class="form-group pad-left">
+  <p>Please note that the tables in this form are for all tables not associated with a cPanel user.
+  These are any system tables and any tables created manually, outside of cPanel.</p>
+  <div class="pad-left" id="{{ bak_type }}-mode">
+    {{ radio(
+      name='{}-mode'.format(bak_type),
+      val='all',
+      checked=sys_bak_conf.mode is none,
+      html="All except cPanel users' databases",
+      onchange="$('#{0}-mode-whitelist').hide(); $('#{0}-mode-blacklist').hide()".format(bak_type),
+      disabled=salt_managed
+    ) }}
+    {{ radio(
+        name='{}-mode'.format(bak_type),
+        val='whitelist',
+        checked=sys_bak_conf.mode == 'whitelist',
+        html='Backup selected databases - When you create new databases they <strong><em>will not be</em></strong> backed up until also selected.',
+        onchange="$('#{0}-mode-whitelist').show(); $('#{0}-mode-blacklist').hide()".format(bak_type),
+        disabled=salt_managed
+    ) }}
+    {{ db_select('{}-mode-whitelist'.format(bak_type), sys_bak_conf, sizes) }}
+    {{ radio(
+      name='{}-mode'.format(bak_type),
+      val='blacklist',
+      checked=sys_bak_conf.mode == 'blacklist',
+      html='Exclude selected databases - When you create new databases they <strong><em>will be</em></strong> backed up.',
+      onchange="$('#{0}-mode-whitelist').hide(); $('#{0}-mode-blacklist').show()".format(bak_type),
+      disabled=salt_managed
+    ) }}
+    {{ db_select('{}-mode-blacklist'.format(bak_type), sys_bak_conf, sizes) }}
+  </div>
+</div>
+{% endmacro -%}
+
+{% macro db_select(id, sys_bak_conf, sizes) -%}
+{# used to show each mode within the database mode selection form #}
+  <div id="{{id}}" class="custom-items">
+  {% for db_name, usage_mb in sizes|dictsort %}
+    <label>
+      <input type="checkbox" data-size="{{ usage_mb }}" value="{{ db_name }}"
+      {%- if sys_bak_conf.custom is not none and db_name in sys_bak_conf.custom %} checked="checked"{% endif %}
+      {%- if salt_managed %} disabled="disabled"{% endif %} />
+      {{ db_name }} ({{ (usage_mb / 1024)|round(2) }}GB)
+    </label>
+  {% endfor %}
+  </div>
+{% endmacro -%}
+
+<p>This tab is for configuring backups for data not associated to a particular cPanel account, or
+disabling backups for a database management system that is not installed.</p>
+
+<h2>System Directories</h2>
+<div class="well">
+  <h3>Scheduling</h3>
+  <div class="pad-left">
+    {{ show_scheduling('dirs', sys_conf.dirs) }}
+  </div>
+  <div class="hide-dirs">
+    <hr />
+    <h3>System Paths</h3>
+    <div class="form-group pad-left">
+      <label>Paths to backup{% if not salt_managed %} (provide the full paths and press enter){% endif %}</label><br />
+      <span>These are paths to backup for the root account. cPanel users have their /home directories backed up in &quot;Backup Manager&quot; in their individual cPanel dashboards.</span><br />
+      <span>Sizes displayed here are from cache and will take some time to reflect any changes you make.</span><br />
+      <ul id="dirs-paths" data-sizes='{{dir_sizes|tojson}}'>
+        {% for path in sys_conf.dirs.paths %}
+        <li>{{path}}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    <p class="pad-left">If you would like to exclude any subfolders within these folders from the backup, please provide their full paths.</p>
+    <div class="form-group pad-left">
+      <label>Subfolders to skip{% if not salt_managed %} (provide the full paths and press enter){% endif %}</label><br />
+      <ul id="dirs-exclude">
+        {% for path in sys_conf.dirs.exclude %}
+        <li>{{path}}</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+  {{ button('Save System Directories Settings', 'save_settings_dirs(this);', disabled=salt_managed) }}
+  {{ alert('save-dirs', 'msg')}}
+</div>
+
+{{ db_settings('MySQL', db_sizes.mysql, sys_conf.mysql, sys_conf.cpuser_enable.mysql) }}
+{{ db_settings('PgSQL', db_sizes.pgsql, sys_conf.pgsql, sys_conf.cpuser_enable.pgsql) }}
+
+<div class="row">
+  <div class="col-sm-6">
+    {{ button('Save All in This Tab', 'save_settings_all(this);', disabled=salt_managed) }}
+    {{ alert('save-all', 'msg') }}
+  </div>
+  <div class="col-sm-6 text-right">
+    {{ button('Reset All in This Tab', "reset_modal('settings', 'Backup Settings');", class="btn-warning btn-sm btn-reset", disabled=salt_managed) }}
+  </div>
+</div>

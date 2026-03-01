@@ -1,0 +1,147 @@
+{# vim: ts=2:sw=2:et:ft=jinja-html #}
+{% from "macros.html" import num_input, text_input, switch, button, alert, help without context %}
+
+{% macro xfercpanel(user) %}
+<form class="xfercpanel" method="POST" action="/xfercpanel" target="_blank">
+  <input type="hidden" name='token' value="{{request.environ['cp_security_token']}}">
+  <input type="hidden" name="user" value="{{user}}">
+  <input type="image" src="/images/cpanel.png">
+</form>
+{% endmacro %}
+
+{% macro sys_size_row(label, size_mb, total=False, help_text=none) %}
+<div class="row size-breakdown-row">
+  <div class="col-sm-3">
+    {%- if total -%}
+      <strong>{{label}}</strong>
+    {% else -%}
+      {{label}}
+    {% endif -%}
+    {% if help_text is not none -%}
+      {{ help(help_text) }}
+    {% endif -%}
+  </div>
+  <div class="col-sm-1 text-right">
+    {% if size_mb is none %}??{% else %}{{ (size_mb / 1024)|round(2) }}{% endif %} GiB
+  </div>
+</div>
+{% endmacro %}
+
+<h2>System Backups</h2>
+<div class="well">
+  <div class="row size-breakdown-header">
+    <div class="col-sm-3"><h3>Backup Type</h3></div>
+    <div class="col-sm-1 text-right"><h3>Backup Usage</h3></div>
+  </div>
+  {{ sys_size_row('System Directories', sys_cache.dirs) }}
+  {{ sys_size_row('System MySQL Databases', sys_cache.mysql) }}
+  {{ sys_size_row('System PgSQL Databases', sys_cache.pgsql) }}
+  {{ sys_size_row(
+    'System Grace',
+    -sys_grace_mb,
+    help_text='This is extra space for System Backups provided for free with your Backup Manager subscription which does not count against your quota.'
+  ) }}
+  {{ sys_size_row('System Total', sys_cache.sys_total, total=True) }}
+</div>
+
+<h2>cPanel User Backups</h2>
+<div class="well">
+  <div class="row">
+    <div class="col-sm-3">
+      {{ switch(
+        id="limit-cpusers",
+        enabled=sys_conf.user_limits.do_limit,
+        yes_txt="Yes", no_txt="No", text="Limit Account Usage",
+        hides=".hide-cpuser-limits", onchange='enable_changed(this);',
+        disable_switch=salt_managed,
+      ) }}
+    </div>
+    <div class="col-sm-4">
+      <div class="form-group form-inline hide-cpuser-limits">
+        <label for="cpuser-limit-default">Default limit for new accounts</label>
+        {{ num_input('cpuser-limit-default', val=sys_conf.user_limits.default_limit / 1024, min=0, max=none, step=0.1) }}
+      </div>
+    </div>
+    <div class="col-sm-5">
+      <div class="hide-cpuser-limits">
+        {{ text_input(
+          id='cpuser-limit-email',
+          class="email-input",
+          value=sys_conf.user_limits.email,
+          label='Email to send Notifications',
+          email=true
+        ) }}
+      </div>
+    </div>
+  </div>
+  <hr id="cpuser-limit-hr" />
+  <div class="row size-breakdown-header">
+    <div class="col-sm-3"><h3>cPanel User</h3></div>
+    <div class="col-sm-1 text-right"><h3>Backup Usage</h3></div>
+    <div class="col-sm-3"></div>
+    <div class="col-sm-3 text-center"><h3 class="hide-cpuser-limits">Backup Limit</h3></div>
+    <div class="col-sm-2 text-center"><h3 class="hide-cpuser-limits">Email Notifications</h3></div>
+  </div>
+{% for user, size in cpuser_sizes.items() if user not in extra_users%}
+    <div class="row size-breakdown-row cpuser-row" data-user="{{user}}" data-size="{% if size is none %}?{% else %}{{ (size / 1024)|round(2) }}{% endif %}">
+      <div class="col-sm-3">{{ xfercpanel(user) }} {{user}}</div>
+      <div class="col-sm-1 text-right">{% if size is none %}??{% else %}{{ (size / 1024)|round(2) }}{% endif %} GiB</div>
+      <div class="col-sm-2"><div class="progress hide-cpuser-limits"><div class="progress-bar" role="progressbar" style="width: 0%"></div></div></div>
+      <div class="col-sm-1"></div>
+      <div class="col-sm-3 cpuser-limit text-center">
+      {%- if user in sys_conf.user_limits.limits %}
+        {%- set limit = sys_conf.user_limits.limits[user] / 1024 %}
+      {%- else %}
+        {%- set limit = sys_conf.user_limits.default_limit / 1024 %}
+      {%- endif %}
+        <div class="hide-cpuser-limits">
+          <span class="visible-xs">Limit:</span>
+          {{ num_input(
+            id=none, min=0, max=none, step=0.1,
+            val=limit,
+            trigger="update_cpuser_limits()",
+            disabled=salt_managed
+          ) }} GiB
+        </div>
+      </div>
+      <div class="col-sm-2 text-center cpuser-notify-switch">
+        <div class="hide-cpuser-limits">
+          <span class="visible-xs">Notifications:</span>
+          {{switch(
+            enabled=user in sys_conf.user_limits.notify and sys_conf.user_limits.notify[user],
+            size="small",
+            disable_switch=salt_managed
+          )}}
+        </div>
+      </div>
+    </div>
+{% endfor %}
+  <div class="row size-breakdown-row">
+    <div class="col-sm-3"><strong>cPanel User Total</strong></div>
+    <div class="col-sm-1 text-right">{% if cpuser_total is none %}??{% else %}{{ (cpuser_total / 1024)|round(2) }}{% endif %} GiB</div>
+  </div>
+</div>
+
+{% if is_shared %}
+<div class="well">
+  <h2>Extra Users</h2>
+  <p>These are the cPanel users found on this shared server which do not belong on this server
+    according to AMP. These accounts may have been migrated to another server.
+    They will not be backed up from this server.</p>
+  <ul id="extra-user-ul">
+    {% for user in extra_users %}
+    <li>{{ user }}</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<div class="row">
+  <div class="col-sm-6">
+    {{ button('Save cPanel User Limit Settings', 'save_cpuser_limits(this);', disabled=salt_managed) }}
+    {{ alert('cpuser-limit-save', 'msg') }}
+  </div>
+  <div class="col-sm-6 text-right">
+    {{ button('Reset cPanel User Limit Settings', "reset_modal('storage', 'Storage Breakdown');", class="btn-warning btn-sm btn-reset", disabled=salt_managed) }}
+  </div>
+</div>
