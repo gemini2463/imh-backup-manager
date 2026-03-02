@@ -47,7 +47,7 @@ if ($isCPanelServer) {
 if ($isCPanelServer) {
     // cPanel: the CGI is served at /cgi/backups/cgi/backups.cgi relative to WHM root
     // From our plugin at /cgi/imh-backup-manager/, the relative path is:
-    $CGI_BACKEND = '../backups/cgi/backups.cgi';
+    $CGI_BACKEND = '../backups.cgi';
 } else {
     // CWP: adjust as needed for the CWP installation
     $CGI_BACKEND = '/backups/cgi/backups.cgi';
