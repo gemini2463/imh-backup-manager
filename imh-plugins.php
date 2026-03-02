@@ -1,13 +1,12 @@
 <?php
-// This file dynamically generates the CWP admin panel menu for IMH plugins
-// Shared across all imh-* plugins installed on CWP
+//This file is used to dynamically generate the admin panel menu for IMH plugins
 
 $plugin_dir = '/usr/local/cwpsrv/htdocs/resources/admin/modules/';
 $plugins = [];
 
 foreach (glob($plugin_dir . 'imh-*.php') as $filename) {
     $system = basename($filename, '.php');
-    // Get the second line from the file (title comment)
+    // Get the second line from the file (title)
     $lines = file($filename);
     $title = isset($lines[1]) ? trim(preg_replace('/^\/\/\s*/', '', $lines[1])) : $system;
     $plugins[] = [
